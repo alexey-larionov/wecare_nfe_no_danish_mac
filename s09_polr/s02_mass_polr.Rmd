@@ -1,0 +1,191 @@
+---
+title: "MASS POLR WECARE NFE"
+author: "Alexey Larionov"
+date: "01 Feb 2021"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+editor_options:
+  chunk_output_type: console
+---
+
+started: Alexey Larionov, 27Feb2017  
+last updated: Alexey Larionov, 20Sep2019  
+
+# Summary
+
+Reads the data, which is already imputed, weighted and aggregated per bc8 gene (there was no need in inverting genotypes).  
+
+Performs trend test for NFE < UBC < CBC using POLR function from MASS library.  
+
+This is a trend test within regression framework using proportional odds regression model.  
+Thus, it allows the covariates, which are 3 top eigenvectors in this case.  
+
+POLR or multinomial-logistic regression were advised by David Conti (e-mail of 18Nov2016).  
+Initially, I tested both.  Then I excluded multinomuial because it was messy and,  
+in general, multinomial is less sensitive/suitable for ordered categories.  
+
+# Start section
+
+<style>
+pre {
+  overflow-x: auto;
+}
+pre code {
+  word-wrap: normal;
+  white-space: pre;
+}
+</style>
+
+```{r echo=F}
+options(width = 999)
+```
+
+```{r}
+
+# Time stamp
+Sys.time()
+
+# Clenan-up
+rm(list=ls())
+graphics.off()
+
+# Folders
+base_folder <- "/Users/alexey/Documents"
+project_folder <- file.path(base_folder,"wecare","final_analysis_2021","reanalysis_wo_danish_2021","s02_wes_wecare_nfe")
+scripts_folder <- file.path(project_folder,"scripts","s09_polr")
+setwd(scripts_folder)
+data_folder <- file.path(project_folder,"data","s09_polr")
+
+# Libraries
+library(MASS) # for proportional odds regression (polr)
+
+```
+
+# Load data
+
+```{r}
+
+load(file.path(data_folder, "s01_impute_weight_aggregate.RData"))
+
+```
+
+# Check data
+
+```{r}
+
+ls()
+
+dim(genotypes.mx)
+dim(variants.df)
+dim(phenotypes.df)
+
+dim(bc8_genotypes.mx)
+dim(bc8_genotypes_imp.mx)
+dim(bc8_genotypes_imp_wt.mx)
+
+length(bc8_genotypes_imp_wt_aggregated)
+
+length(bc8_genes)
+
+dim(bc8_fiv_all.df)
+dim(bc8_variants.df)
+
+# Check consistency of rownames and colnames
+sum(colnames(genotypes.mx) != phenotypes.df$sample.ID)
+sum(rownames(genotypes.mx) != variants.df$ID)
+
+sum(names(bc8_genotypes_imp_wt_aggregated) != phenotypes.df$sample.ID)
+
+```
+
+# POLR
+
+```{r}
+
+# Outcomes
+table(phenotypes.df$cc)
+Y <- phenotypes.df$cc + 2 # shift [-1,0,1] to [1,2,3] - natural numbers may better fit to ordered factors later  
+Y <- ordered(Y, levels=c(1,2,3), labels=c("nffe", "ubc", "cbc")) # convert to ordered factor
+names(Y) <- as.vector(phenotypes.df$sample.ID) # add names (just in case)
+str(Y)
+table(Y)
+Y[c(1,300,500)]
+sum(is.na(Y)) # 0
+Y[1:5]
+
+# Eigenvectors
+E <- as.matrix(phenotypes.df[,c("pc1","pc2","pc3")])  
+E[1:5,]
+sum(is.na(E)) # 0
+
+# Genotypes
+G <- bc8_genotypes_imp_wt_aggregated
+sum(is.na(G))
+
+# "Null model" - includes only Eigenvectors
+polr_E <- polr(Y ~ E)
+
+# Complete model - Genotypes and Eigenvectors
+polr_GE <- polr(Y ~ G + E)
+
+# Compute polr p-value for Genotypes
+polr_anova <- anova(polr_E, polr_GE)
+polr_anova
+
+polr_p <- polr_anova["2","Pr(Chi)"]
+polr_p
+
+# Clean-up
+rm(Y, E, G, polr_p)
+
+```
+
+# Check data
+
+```{r}
+
+ls()
+
+dim(genotypes.mx)
+dim(variants.df)
+dim(phenotypes.df)
+
+dim(bc8_genotypes.mx)
+dim(bc8_genotypes_imp.mx)
+dim(bc8_genotypes_imp_wt.mx)
+
+length(bc8_genotypes_imp_wt_aggregated)
+
+length(bc8_genes)
+
+dim(bc8_fiv_all.df)
+dim(bc8_variants.df)
+
+# Check consistency of rownames and colnames
+sum(colnames(genotypes.mx) != phenotypes.df$sample.ID)
+sum(rownames(genotypes.mx) != variants.df$ID)
+
+sum(names(bc8_genotypes_imp_wt_aggregated) != phenotypes.df$sample.ID)
+
+```
+
+# save_data
+
+```{r save_data}
+
+save.image(file.path(data_folder, "s02_mass_polr.RData"))
+
+```
+
+# final_section
+
+```{r final_section}
+
+ls()
+sessionInfo()
+Sys.time()
+gc()
+
+```
